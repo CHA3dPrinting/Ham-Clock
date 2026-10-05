@@ -606,7 +606,15 @@ class DXClusterScreen(Screen):
         # Content layout on top
         layout = BoxLayout(orientation='vertical', padding=10, spacing=10, size_hint=(1, 1))
         
-        layout.add_widget(Label(text='DX Cluster Spots (NC7J)', size_hint_y=0.1, bold=True, font_size='16sp', color=(0, 0, 0, 1)))
+        # Header with title and live indicator
+        header_layout = BoxLayout(size_hint_y=0.1, spacing=10)
+        header_layout.add_widget(Label(text='DX Cluster Spots (NC7J)', size_hint_x=0.8, bold=True, font_size='16sp', color=(0, 0, 0, 1)))
+        self.live_indicator = Label(text='', size_hint_x=0.2, bold=True, font_size='14sp', color=(0, 1, 0, 1))
+        header_layout.add_widget(self.live_indicator)
+        layout.add_widget(header_layout)
+        
+        # Track seen spots for highlighting new ones
+        self.seen_spots = set()
         
         # Scrollable spot list
         scroll = ScrollView()
@@ -628,7 +636,7 @@ class DXClusterScreen(Screen):
             self.overlay_rect.size = instance.size
     
     def on_enter(self, *args):
-        """Reload background when entering screen"""
+        """Reload background and start live updates when entering screen"""
         self.prefs = load_prefs()
         bg_name = self.prefs.get('background', 'callsign_only')
         try:
@@ -636,6 +644,13 @@ class DXClusterScreen(Screen):
         except:
             pass
         self.fetch_dx_spots()
+        # Start auto-refresh every 10 seconds while viewing this screen
+        self.refresh_event = Clock.schedule_interval(self.fetch_dx_spots, 10)
+    
+    def on_leave(self, *args):
+        """Stop live updates when leaving screen"""
+        if hasattr(self, 'refresh_event'):
+            self.refresh_event.cancel()
     
     def fetch_dx_spots(self, *args):
         """Connect to DX Cluster and fetch recent spots"""
@@ -732,15 +747,56 @@ class DXClusterScreen(Screen):
             Clock.schedule_once(lambda dt: self._update_spots([f'Error: {error_msg}']), 0)
     
     def _update_spots(self, spots):
-        self.spots_layout.clear_widgets()
+        """Update spots display with new spots highlighted at top"""
         if not spots:
+            self.spots_layout.clear_widgets()
             self.spots_layout.add_widget(Label(text='No spots available', size_hint_y=None, height=30, color=(0, 0, 0, 1)))
+            self.live_indicator.text = '●'  # Pulsing indicator
         else:
-            for spot in spots[-15:]:  # Show last 15
+            # Find which spots are new
+            new_spot_strings = []
+            for spot in spots[-15:]:  # Keep last 15
+                if spot and spot not in self.seen_spots:
+                    new_spot_strings.append(spot)
+                    self.seen_spots.add(spot)
+            
+            # Keep seen_spots from growing too large
+            if len(self.seen_spots) > 100:
+                # Keep only the 100 most recent
+                self.seen_spots = self.seen_spots.copy()
+            
+            # Clear and rebuild display - new spots at top with green highlight
+            self.spots_layout.clear_widgets()
+            
+            # Add new spots first (with highlight)
+            for spot in new_spot_strings:
                 if spot:
+                    spot_widget = FloatLayout(size_hint_y=None, height=22)
+                    with spot_widget.canvas.before:
+                        Color(0, 1, 0, 0.2)  # Green with 20% opacity for new spots
+                        spot_widget.rect = Rectangle(size=spot_widget.size, pos=spot_widget.pos)
+                    spot_widget.bind(size=self._update_spot_rect, pos=self._update_spot_rect)
+                    
+                    spot_label = Label(text=spot[:70], size_hint_y=None, height=22, 
+                                     font_size='10sp', text_size=(self.width - 20, None), color=(0, 0, 0, 1))
+                    spot_widget.add_widget(spot_label)
+                    self.spots_layout.add_widget(spot_widget)
+            
+            # Add existing spots (no highlight)
+            for spot in spots[-15:]:
+                if spot and spot not in new_spot_strings:
                     spot_label = Label(text=spot[:70], size_hint_y=None, height=22, 
                                      font_size='10sp', text_size=(self.width - 20, None), color=(0, 0, 0, 1))
                     self.spots_layout.add_widget(spot_label)
+            
+            # Update live indicator
+            self.live_indicator.text = '● LIVE'
+    
+    def _update_spot_rect(self, instance, value):
+        """Update spot background rectangle"""
+        if hasattr(instance, 'rect'):
+            instance.rect.pos = instance.pos
+            instance.rect.size = instance.size
 
 
 class HamClockScreenManager(ScreenManager):
