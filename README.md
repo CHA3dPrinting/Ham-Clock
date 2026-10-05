@@ -42,8 +42,8 @@ ham_clock/
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/yourusername/ham_clock.git
-cd ham_clock
+git clone https://github.com/CHA3dPrinting/Ham-Clock.git
+cd Ham-Clock
 ```
 
 2. **Create virtual environment**
@@ -80,8 +80,8 @@ sudo apt install python3-pip python3-dev libsdl2-dev libsdl2-image-dev libsdl2-m
 4. **Clone and setup**
 ```bash
 cd ~
-git clone https://github.com/yourusername/ham_clock.git
-cd ham_clock
+git clone https://github.com/CHA3dPrinting/Ham-Clock.git
+cd Ham-Clock
 python3 -m venv ham_clock_env
 source ham_clock_env/bin/activate
 pip install -r requirements.txt

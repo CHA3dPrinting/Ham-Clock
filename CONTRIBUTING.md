@@ -37,8 +37,8 @@ Enhancement suggestions are tracked as GitHub issues. When creating an enhanceme
 
 1. **Fork the repository**
 ```bash
-git clone https://github.com/yourusername/ham_clock.git
-cd ham_clock
+git clone https://github.com/CHA3dPrinting/Ham-Clock.git
+cd Ham-Clock
 ```
 
 2. **Create a development branch**

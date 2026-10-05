@@ -6,8 +6,8 @@ Get Ham Clock running in 5 minutes.
 
 ### 1. Clone and Setup
 ```bash
-git clone https://github.com/yourusername/ham_clock.git
-cd ham_clock
+git clone https://github.com/CHA3dPrinting/Ham-Clock.git
+cd Ham-Clock
 python3 -m venv ham_clock_env
 source ham_clock_env/bin/activate
 pip install -r requirements.txt
@@ -43,8 +43,8 @@ sudo apt install python3-pip python3-dev libsdl2-dev libsdl2-image-dev libsdl2-m
 ### 3. Clone Ham Clock
 ```bash
 cd ~
-git clone https://github.com/yourusername/ham_clock.git
-cd ham_clock
+git clone https://github.com/CHA3dPrinting/Ham-Clock.git
+cd Ham-Clock
 python3 -m venv ham_clock_env
 source ham_clock_env/bin/activate
 pip install -r requirements.txt

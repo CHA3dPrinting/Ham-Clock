@@ -46,12 +46,12 @@ git commit -m "Initial commit: Ham Clock v1.0.0"
 ### Step 3: Push to GitHub
 ```bash
 git branch -M main
-git remote add origin https://github.com/yourusername/ham_clock.git
+git remote add origin https://github.com/CHA3dPrinting/Ham-Clock.git
 git push -u origin main
 ```
 
 ### Step 4: Verify
-Visit `https://github.com/yourusername/ham_clock` and confirm all files are there.
+Visit `https://github.com/CHA3dPrinting/Ham-Clock` and confirm all files are there.
 
 ---
 
