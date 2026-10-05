@@ -109,14 +109,16 @@ The app stores user settings in `ham_clock_prefs.json`:
 ### Background Themes
 
 - **Callsign Only**: White background with your callsign in big red letters (with 0 displayed as Ø per ham radio convention)
-- **Yaesu**: Orange and white vintage radio aesthetic (provide your own image)
-- **Icom**: Pink modern aesthetic (provide your own image)
-- **Kenwood**: Black and white minimal aesthetic (provide your own image)
+- **Yaesu**: Orange and white vintage radio aesthetic
+- **Icom**: Pink modern aesthetic
+- **Kenwood**: Black and white minimal aesthetic
 
-Place custom background images (720×720 PNG) in the `backgrounds/` directory:
+All background images are included in the repository in the `backgrounds/` directory. To customize, replace:
 - `backgrounds/yaesu.png`
 - `backgrounds/icom.png`
 - `backgrounds/kenwood.png`
+
+with your own 720×720 PNG images.
 
 ## Data Sources
 
