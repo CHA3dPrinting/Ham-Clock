@@ -194,17 +194,6 @@ python3 -u ham_clock_main.py 2>&1 | tee ham_clock.log
 3. Update `HamClockScreenManager.screens_list` to include new screen
 4. Add to `QUICKSTART.md` documentation
 
-## Future Enhancements
-
-- [ ] Real solar flux and sunspot data from NOAA
-- [ ] Additional DX clusters (AR-Cluster, DXSpider alternatives)
-- [ ] Customizable band list
-- [ ] Audio alerts for rare DX
-- [ ] QSO log integration
-- [ ] Antenna tuner control via CAT
-- [ ] Full 160m–1.2GHz band display
-- [ ] Touchscreen optimizations for round displays
-
 ## License
 
 MIT License - see LICENSE file for details
