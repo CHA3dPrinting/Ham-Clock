@@ -294,6 +294,11 @@ class PropagationScreen(Screen):
     
     def _fetch_data(self):
         try:
+            k_val = '--'
+            a_val = '--'
+            sf_val = '--'
+            ssn_val = '--'
+            
             # NOAA planetary K-index data
             url = "https://services.swpc.noaa.gov/json/planetary_k_index_1m.json"
             resp = requests.get(url, timeout=5)
@@ -311,20 +316,60 @@ class PropagationScreen(Screen):
                     k_val = '--'
                 
                 # Use estimated_kp for A-index display
-                # estimated_kp is a decimal approximation
                 a_val = latest.get('estimated_kp')
                 if a_val is not None:
                     a_val = float(a_val)
                 else:
                     a_val = '--'
-                
-                Clock.schedule_once(lambda dt: self._update_labels(k_val, a_val), 0)
             else:
-                Logger.warning('No data from NOAA')
+                Logger.warning('No K/A index data from NOAA')
+            
+            # Fetch Solar Flux (F10.7 cm index) from NOAA solar cycle forecast
+            try:
+                sf_url = "https://services.swpc.noaa.gov/json/solar-cycle/predicted-solar-cycle.json"
+                sf_resp = requests.get(sf_url, timeout=5)
+                sf_data = sf_resp.json()
+                
+                if sf_data and len(sf_data) > 0:
+                    # Get the latest entry (most recent forecast)
+                    latest_sf = sf_data[-1]
+                    sf_val = latest_sf.get('predicted_f10.7')
+                    if sf_val is not None:
+                        sf_val = int(float(sf_val))
+                    else:
+                        sf_val = '--'
+            except Exception as e:
+                Logger.warning(f'Solar flux data fetch failed: {e}')
+                sf_val = '--'
+            
+            # Fetch Sunspot Number from NOAA daily solar indices (text format)
+            try:
+                ssn_url = "https://services.swpc.noaa.gov/text/daily-solar-indices.txt"
+                ssn_resp = requests.get(ssn_url, timeout=5)
+                ssn_text = ssn_resp.text
+                
+                # Parse the last non-comment line to get sunspot number
+                lines = ssn_text.strip().split('\n')
+                for line in reversed(lines):
+                    if line and not line.startswith(':'):
+                        # Format: YYY MM DD ... SSN ... 
+                        parts = line.split()
+                        if len(parts) >= 4:
+                            try:
+                                ssn_val = int(parts[3])  # Sunspot number is typically 4th column
+                                break
+                            except (ValueError, IndexError):
+                                continue
+            except Exception as e:
+                Logger.warning(f'Sunspot data fetch failed: {e}')
+                ssn_val = '--'
+            
+            Clock.schedule_once(lambda dt: self._update_labels(k_val, a_val, sf_val, ssn_val), 0)
+            
         except Exception as e:
             Logger.error(f'PropagationScreen fetch error: {e}')
     
-    def _update_labels(self, k, a):
+    def _update_labels(self, k, a, sf, ssn):
         try:
             if k != '--':
                 self.k_index.text = str(k)  # Kp is integer 0-9
@@ -335,14 +380,22 @@ class PropagationScreen(Screen):
                 self.a_index.text = f'{a:.1f}'  # Estimated Kp as decimal
             else:
                 self.a_index.text = '--'
+            
+            if sf != '--':
+                self.solar_flux.text = str(sf)  # Solar flux in sfu
+            else:
+                self.solar_flux.text = '--'
+            
+            if ssn != '--':
+                self.sunspot_num.text = str(ssn)  # Sunspot number
+            else:
+                self.sunspot_num.text = '--'
         except Exception as e:
             Logger.error(f'Failed to update labels: {e}')
             self.k_index.text = '--'
             self.a_index.text = '--'
-        
-        # Solar flux and sunspots - placeholder for now
-        self.solar_flux.text = '~150'
-        self.sunspot_num.text = '~50'
+            self.solar_flux.text = '--'
+            self.sunspot_num.text = '--'
 
 
 class BandScreen(Screen):
@@ -643,9 +696,10 @@ class DXClusterScreen(Screen):
             self.bg_image.source = f'backgrounds/{bg_name}.png'
         except:
             pass
+        self.is_rate_limited = False  # Start fresh when entering screen
         self.fetch_dx_spots()
-        # Start auto-refresh every 10 seconds while viewing this screen
-        self.refresh_event = Clock.schedule_interval(self.fetch_dx_spots, 10)
+        # Start auto-refresh every 2 minutes to avoid NC7J rate limiting (1 login/~3min)
+        self.refresh_event = Clock.schedule_interval(self.fetch_dx_spots, 120)
     
     def on_leave(self, *args):
         """Stop live updates when leaving screen"""
@@ -654,6 +708,9 @@ class DXClusterScreen(Screen):
     
     def fetch_dx_spots(self, *args):
         """Connect to DX Cluster and fetch recent spots"""
+        # Skip refresh if rate-limited to give cluster time to recover
+        if hasattr(self, 'is_rate_limited') and self.is_rate_limited:
+            return
         thread = threading.Thread(target=self._fetch_cluster_data)
         thread.daemon = True
         thread.start()
@@ -702,8 +759,14 @@ class DXClusterScreen(Screen):
                                 retry_seconds = int(match.group(1))
                                 retry_minutes = retry_seconds // 60
                                 spots_data = [f'NC7J Rate Limited - Retry in {retry_minutes}m {retry_seconds % 60}s']
+                                # Pause refreshes and auto-resume after rate limit expires
+                                self.is_rate_limited = True
+                                Clock.schedule_once(lambda dt: setattr(self, 'is_rate_limited', False), retry_seconds + 5)
                             else:
                                 spots_data = ['NC7J Rate Limited - Please retry in a few minutes']
+                                # Pause refreshes for 4 minutes as a safe default
+                                self.is_rate_limited = True
+                                Clock.schedule_once(lambda dt: setattr(self, 'is_rate_limited', False), 240)
                             raise StopIteration()
                         
                         # After login, process lines for DX spots
@@ -788,12 +851,12 @@ class DXClusterScreen(Screen):
                 if spot:
                     spot_widget = FloatLayout(size_hint_y=None, height=22)
                     with spot_widget.canvas.before:
-                        Color(0, 1, 0, 0.2)  # Green with 20% opacity for new spots
+                        Color(0, 1, 0, 0.5)  # Bright green with 50% opacity for new spots
                         spot_widget.rect = Rectangle(size=spot_widget.size, pos=spot_widget.pos)
                     spot_widget.bind(size=self._update_spot_rect, pos=self._update_spot_rect)
                     
                     spot_label = Label(text=spot[:70], size_hint_y=None, height=22, 
-                                     font_size='10sp', text_size=(self.width - 20, None), color=(0, 0, 0, 1))
+                                     font_size='10sp', text_size=(self.width - 20, None), color=(0, 0, 0, 1), bold=True)
                     spot_widget.add_widget(spot_label)
                     self.spots_layout.add_widget(spot_widget)
             
