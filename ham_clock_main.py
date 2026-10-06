@@ -3,11 +3,11 @@ Ham Clock - Kivy-based Radio Clock with DX Cluster and Propagation Data
 Pi 4 with OS Lite, KLAYERS 4" Round Touch Display
 
 Multi-screen app with swipe navigation:
-- Screen 1: Digital dual clock (CST + UTC) + Callsign
+- Screen 1: Digital dual clock (Local + UTC) + Callsign
 - Screen 2: Solar/Geomagnetic data (K-index, A-index)
 - Screen 3: HF Band propagation conditions
 - Screen 4: DX Cluster spots
-- Screen 5: Settings (background selection)
+- Screen 5: Settings (timezone, callsign, background selection)
 """
 
 from kivy.app import App
@@ -20,6 +20,7 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.button import Button
 from kivy.uix.image import Image as KivyImage
 from kivy.uix.textinput import TextInput
+from kivy.uix.spinner import Spinner
 from kivy.clock import Clock
 from kivy.logger import Logger
 from kivy.graphics import Color, Rectangle
@@ -51,6 +52,7 @@ def load_prefs():
     defaults = {
         'callsign': 'NOCALL',  # Change this to your callsign
         'background': 'callsign_only',
+        'timezone': 'US/Central',  # Default to Central Time
     }
     return defaults
 
@@ -150,9 +152,10 @@ class MainScreen(Screen):
         # Time display - Dual digital clocks
         time_layout = GridLayout(cols=2, size_hint_y=0.85, spacing=20, padding=20)
         
-        # LOCAL TIME (CST)
+        # LOCAL TIME (with timezone label)
         local_box = BoxLayout(orientation='vertical', padding=15, size_hint_x=0.5)
-        local_box.add_widget(Label(text='LOCAL (CST)', size_hint_y=0.2, bold=True, font_size='18sp', color=(0, 0, 0, 1)))
+        self.local_label = Label(text='LOCAL', size_hint_y=0.2, bold=True, font_size='18sp', color=(0, 0, 0, 1))
+        local_box.add_widget(self.local_label)
         self.local_time = Label(text='--:--:--', size_hint_y=0.8, font_size='48sp', bold=True, color=(0, 0.6, 0, 1))
         local_box.add_widget(self.local_time)
         time_layout.add_widget(local_box)
@@ -191,12 +194,22 @@ class MainScreen(Screen):
         self.callsign_label.text = callsign_display
     
     def update_times(self, dt):
-        local_tz = pytz.timezone('US/Central')  # Central Standard Time
+        try:
+            tz_name = self.prefs.get('timezone', 'US/Central')
+            local_tz = pytz.timezone(tz_name)
+        except:
+            local_tz = pytz.timezone('US/Central')  # Fallback if invalid timezone
+            tz_name = 'US/Central'
+        
         local_time = datetime.datetime.now(local_tz)
         utc_time = datetime.datetime.now(pytz.UTC)
         
         self.local_time.text = local_time.strftime('%H:%M:%S')
         self.utc_time.text = utc_time.strftime('%H:%M:%S')
+        
+        # Update timezone label with abbreviation (e.g., "LOCAL (CST)")
+        tz_abbr = local_time.strftime('%Z')
+        self.local_label.text = f'LOCAL ({tz_abbr})'
 
 
 class PropagationScreen(Screen):
@@ -566,11 +579,35 @@ class SettingsScreen(Screen):
         
         layout.add_widget(callsign_box)
         
+        # ===== TIMEZONE SECTION =====
+        layout.add_widget(Label(text='Timezone:', size_hint_y=0.08, bold=True, font_size='14sp', color=(0, 0, 0, 1)))
+        
+        # Timezone spinner
+        tz_box = BoxLayout(size_hint_y=0.12, spacing=10)
+        current_tz = self.prefs.get('timezone', 'US/Central')
+        
+        # Get common timezones
+        common_timezones = sorted([
+            'US/Eastern', 'US/Central', 'US/Mountain', 'US/Pacific',
+            'US/Alaska', 'US/Hawaii', 'UTC', 'Europe/London', 'Europe/Paris',
+            'Asia/Tokyo', 'Australia/Sydney', 'Pacific/Auckland'
+        ])
+        
+        self.timezone_spinner = Spinner(
+            text=current_tz,
+            values=common_timezones,
+            size_hint_x=0.7
+        )
+        self.timezone_spinner.bind(text=self.save_timezone)
+        tz_box.add_widget(self.timezone_spinner)
+        
+        layout.add_widget(tz_box)
+        
         # ===== BACKGROUND SECTION =====
         layout.add_widget(Label(text='Select Background:', size_hint_y=0.08, bold=True, font_size='14sp', color=(0, 0, 0, 1)))
         
         # Button grid for backgrounds
-        button_layout = GridLayout(cols=2, size_hint_y=0.56, spacing=10, padding=10)
+        button_layout = GridLayout(cols=2, size_hint_y=0.44, spacing=10, padding=10)
         
         backgrounds = [
             ('Callsign Only', 'callsign_only'),
@@ -601,6 +638,7 @@ class SettingsScreen(Screen):
         """Refresh when entering"""
         self.prefs = load_prefs()
         self.callsign_input.text = self.prefs['callsign']
+        self.timezone_spinner.text = self.prefs.get('timezone', 'US/Central')
         # Reload background
         bg_name = self.prefs.get('background', 'callsign_only')
         try:
@@ -627,6 +665,12 @@ class SettingsScreen(Screen):
         
         # Notify main screen to update
         Logger.info(f'Background changed to: {bg_name}')
+    
+    def save_timezone(self, instance, value):
+        """Save timezone preference"""
+        self.prefs['timezone'] = value
+        save_prefs(self.prefs)
+        Logger.info(f'Timezone changed to: {value}')
 
 
 class DXClusterScreen(Screen):
