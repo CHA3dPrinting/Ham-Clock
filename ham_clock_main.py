@@ -659,11 +659,17 @@ class DXClusterScreen(Screen):
         # Content layout on top
         layout = BoxLayout(orientation='vertical', padding=10, spacing=10, size_hint=(1, 1))
         
-        # Header with title and live indicator
+        # Header with title, live indicator, and countdown
         header_layout = BoxLayout(size_hint_y=0.1, spacing=10)
-        header_layout.add_widget(Label(text='DX Cluster Spots (NC7J)', size_hint_x=0.8, bold=True, font_size='16sp', color=(0, 0, 0, 1)))
-        self.live_indicator = Label(text='', size_hint_x=0.2, bold=True, font_size='14sp', color=(0, 1, 0, 1))
+        header_layout.add_widget(Label(text='DX Cluster Spots (NC7J)', size_hint_x=0.5, bold=True, font_size='16sp', color=(0, 0, 0, 1)))
+        self.live_indicator = Label(text='', size_hint_x=0.15, bold=True, font_size='14sp', color=(0, 1, 0, 1))
         header_layout.add_widget(self.live_indicator)
+        # Countdown timer with label
+        timer_layout = BoxLayout(orientation='vertical', size_hint_x=0.35, spacing=2)
+        timer_layout.add_widget(Label(text='Next Refresh:', size_hint_y=0.5, font_size='9sp', color=(0, 0, 0, 1)))
+        self.countdown_timer = Label(text='120s', size_hint_y=0.5, bold=True, font_size='12sp', color=(0, 0, 1, 1))
+        timer_layout.add_widget(self.countdown_timer)
+        header_layout.add_widget(timer_layout)
         layout.add_widget(header_layout)
         
         # Track seen spots for highlighting new ones
@@ -697,20 +703,45 @@ class DXClusterScreen(Screen):
         except:
             pass
         self.is_rate_limited = False  # Start fresh when entering screen
+        self.countdown_seconds = 120  # Start countdown at 2 minutes
         self.fetch_dx_spots()
         # Start auto-refresh every 2 minutes to avoid NC7J rate limiting (1 login/~3min)
         self.refresh_event = Clock.schedule_interval(self.fetch_dx_spots, 120)
+        # Start countdown timer (updates every second)
+        self.countdown_event = Clock.schedule_interval(self._update_countdown, 1)
     
     def on_leave(self, *args):
         """Stop live updates when leaving screen"""
         if hasattr(self, 'refresh_event'):
             self.refresh_event.cancel()
+        if hasattr(self, 'countdown_event'):
+            self.countdown_event.cancel()
+    
+    def _update_countdown(self, dt):
+        """Update countdown timer display"""
+        if self.countdown_seconds > 0:
+            self.countdown_seconds -= 1
+        else:
+            self.countdown_seconds = 120  # Reset to 2 minutes
+        
+        # Update display with color coding
+        if self.countdown_seconds > 60:
+            color = (0, 0, 1, 1)  # Blue for >60s
+        elif self.countdown_seconds > 30:
+            color = (1, 0.65, 0, 1)  # Orange for >30s
+        else:
+            color = (1, 0, 0, 1)  # Red for <=30s
+        
+        self.countdown_timer.text = f'{self.countdown_seconds}s'
+        self.countdown_timer.color = color
     
     def fetch_dx_spots(self, *args):
         """Connect to DX Cluster and fetch recent spots"""
         # Skip refresh if rate-limited to give cluster time to recover
         if hasattr(self, 'is_rate_limited') and self.is_rate_limited:
             return
+        # Reset countdown timer when fetching
+        self.countdown_seconds = 120
         thread = threading.Thread(target=self._fetch_cluster_data)
         thread.daemon = True
         thread.start()
