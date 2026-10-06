@@ -671,6 +671,7 @@ class DXClusterScreen(Screen):
             start_time = time.time()
             banner_done = False
             logged_in = False
+            rate_limited = False
             callsign = self.prefs.get('callsign', 'NOCALL')
             
             # Read initial banner and send login
@@ -690,6 +691,20 @@ class DXClusterScreen(Screen):
                             # Request recent DX spots
                             sock.send(b'show/dx 10\n')
                             continue
+                        
+                        # Check for rate limit message
+                        if logged_in and 'temporarily delayed' in buffer.lower() or 'retry in' in buffer.lower():
+                            rate_limited = True
+                            # Extract retry time if possible
+                            import re
+                            match = re.search(r'retry in (\d+) seconds', buffer.lower())
+                            if match:
+                                retry_seconds = int(match.group(1))
+                                retry_minutes = retry_seconds // 60
+                                spots_data = [f'NC7J Rate Limited - Retry in {retry_minutes}m {retry_seconds % 60}s']
+                            else:
+                                spots_data = ['NC7J Rate Limited - Please retry in a few minutes']
+                            raise StopIteration()
                         
                         # After login, process lines for DX spots
                         if logged_in:
@@ -735,7 +750,7 @@ class DXClusterScreen(Screen):
             
             sock.close()
             
-            if not spots_data:
+            if not spots_data and not rate_limited:
                 status = 'No recent DX spots available' if logged_in else 'Failed to connect to cluster'
                 spots_data = [status]
             
