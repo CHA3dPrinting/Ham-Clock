@@ -703,10 +703,10 @@ class DXClusterScreen(Screen):
         except:
             pass
         self.is_rate_limited = False  # Start fresh when entering screen
-        self.countdown_seconds = 120  # Start countdown at 2 minutes
+        self.countdown_seconds = 180  # Start countdown at 3 minutes (matches NC7J website update cycle)
         self.fetch_dx_spots()
-        # Start auto-refresh every 2 minutes to avoid NC7J rate limiting (1 login/~3min)
-        self.refresh_event = Clock.schedule_interval(self.fetch_dx_spots, 120)
+        # Start auto-refresh every 3 minutes to match NC7J website update cycle
+        self.refresh_event = Clock.schedule_interval(self.fetch_dx_spots, 180)
         # Start countdown timer (updates every second)
         self.countdown_event = Clock.schedule_interval(self._update_countdown, 1)
     
@@ -887,7 +887,7 @@ class DXClusterScreen(Screen):
                     spot_widget.bind(size=self._update_spot_rect, pos=self._update_spot_rect)
                     
                     spot_label = Label(text=spot[:70], size_hint_y=None, height=22, 
-                                     font_size='10sp', text_size=(self.width - 20, None), color=(0, 0, 0, 1), bold=True)
+                                     font_size='10sp', text_size=(self.width - 20, None), color=(1, 1, 1, 1), bold=True)
                     spot_widget.add_widget(spot_label)
                     self.spots_layout.add_widget(spot_widget)
             
