@@ -21,6 +21,7 @@ from kivy.uix.button import Button
 from kivy.uix.image import Image as KivyImage
 from kivy.uix.textinput import TextInput
 from kivy.uix.spinner import Spinner
+from kivy.uix.slider import Slider
 from kivy.clock import Clock
 from kivy.logger import Logger
 from kivy.graphics import Color, Rectangle
@@ -53,6 +54,7 @@ def load_prefs():
         'callsign': 'NOCALL',  # Change this to your callsign
         'background': 'callsign_only',
         'timezone': 'US/Central',  # Default to Central Time
+        'brightness': 100,  # Display brightness 0-255
     }
     return defaults
 
@@ -63,6 +65,44 @@ def save_prefs(prefs):
             json.dump(prefs, f)
     except Exception as e:
         Logger.error(f'Failed to save prefs: {e}')
+
+
+def set_brightness(brightness_value):
+    """Set display brightness via /sys/class/backlight/
+
+    brightness_value: 0-255 (maps to 0-100%)
+    """
+    try:
+        # Find backlight device
+        backlight_path = None
+        for device in os.listdir('/sys/class/backlight/'):
+            backlight_path = f'/sys/class/backlight/{device}/brightness'
+            if os.path.exists(backlight_path):
+                break
+
+        if backlight_path and os.path.exists(backlight_path):
+            # Map 0-255 to actual backlight range
+            try:
+                with open(f'{os.path.dirname(backlight_path)}/max_brightness', 'r') as f:
+                    max_brightness = int(f.read().strip())
+            except:
+                max_brightness = 255
+
+            # Convert 0-255 to 0-max_brightness
+            actual_brightness = int((brightness_value / 255.0) * max_brightness)
+
+            try:
+                with open(backlight_path, 'w') as f:
+                    f.write(str(actual_brightness))
+                Logger.info(f'Brightness set to {brightness_value} ({actual_brightness}/{max_brightness})')
+            except PermissionError:
+                Logger.warning(f'Permission denied writing to {backlight_path}. Try: sudo chmod 666 {backlight_path}')
+            except Exception as e:
+                Logger.error(f'Failed to set brightness: {e}')
+        else:
+            Logger.warning('No backlight device found in /sys/class/backlight/')
+    except Exception as e:
+        Logger.error(f'Brightness control error: {e}')
 
 
 def generate_callsign_background(callsign):
@@ -602,12 +642,37 @@ class SettingsScreen(Screen):
         tz_box.add_widget(self.timezone_spinner)
         
         layout.add_widget(tz_box)
-        
+
+        # ===== BRIGHTNESS SECTION =====
+        layout.add_widget(Label(text='Display Brightness:', size_hint_y=0.08, bold=True, font_size='14sp', color=(0, 0, 0, 1)))
+
+        # Brightness slider
+        brightness_box = BoxLayout(size_hint_y=0.15, spacing=10, padding=10)
+        current_brightness = self.prefs.get('brightness', 100)
+        self.brightness_slider = Slider(
+            min=0,
+            max=255,
+            value=current_brightness,
+            size_hint_x=0.7
+        )
+        self.brightness_slider.bind(value=self.on_brightness_change)
+        brightness_box.add_widget(self.brightness_slider)
+
+        # Brightness value label
+        self.brightness_label = Label(
+            text=f'{int(current_brightness/255*100)}%',
+            size_hint_x=0.3,
+            font_size='16sp',
+            color=(0, 0, 0, 1)
+        )
+        brightness_box.add_widget(self.brightness_label)
+        layout.add_widget(brightness_box)
+
         # ===== BACKGROUND SECTION =====
         layout.add_widget(Label(text='Select Background:', size_hint_y=0.08, bold=True, font_size='14sp', color=(0, 0, 0, 1)))
         
         # Button grid for backgrounds
-        button_layout = GridLayout(cols=2, size_hint_y=0.44, spacing=10, padding=10)
+        button_layout = GridLayout(cols=2, size_hint_y=0.28, spacing=10, padding=10)
         
         backgrounds = [
             ('Callsign Only', 'callsign_only'),
@@ -671,6 +736,18 @@ class SettingsScreen(Screen):
         self.prefs['timezone'] = value
         save_prefs(self.prefs)
         Logger.info(f'Timezone changed to: {value}')
+
+    def on_brightness_change(self, instance, value):
+        """Handle brightness slider change"""
+        brightness_value = int(value)
+        self.prefs['brightness'] = brightness_value
+        save_prefs(self.prefs)
+        # Update percentage label
+        percentage = int(brightness_value / 255 * 100)
+        self.brightness_label.text = f'{percentage}%'
+        # Apply brightness immediately
+        set_brightness(brightness_value)
+        Logger.info(f'Brightness changed to: {percentage}%')
 
 
 class DXClusterScreen(Screen):
@@ -1010,9 +1087,12 @@ class HamClockApp(App):
     
     def build(self):
         self.title = 'Ham Clock'
-        # Generate callsign background on startup
+        # Load preferences and initialize
         prefs = load_prefs()
         generate_callsign_background(prefs.get('callsign', 'NOCALL'))
+        # Initialize display brightness
+        brightness = prefs.get('brightness', 100)
+        set_brightness(brightness)
         return HamClockScreenManager()
 
 
